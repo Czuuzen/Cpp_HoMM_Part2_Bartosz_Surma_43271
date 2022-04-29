@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <Windows.h>
 #define SDL_MAIN_HANDLED
 #include "SDL2/include/SDL.h"
 #include "SDL2/include/SDL_image.h"
@@ -42,9 +41,16 @@ int main()
 
     // Loading an image
     char image_path[] = "image.png";
+    char board_path[] = "board.png";
     // Here the surface is the information about the image. It contains the color data, width, height and other info.
     SDL_Surface* surface = IMG_Load(image_path);
     if (!surface)
+    {
+        printf("Unable to load an image %s. Error: %s", image_path, IMG_GetError());
+        return -1;
+    }
+    SDL_Surface* board_surface = IMG_Load(board_path);
+    if (!board_surface)
     {
         printf("Unable to load an image %s. Error: %s", image_path, IMG_GetError());
         return -1;
@@ -57,32 +63,79 @@ int main()
         printf("Unable to create a texture. Error: %s", SDL_GetError());
         return -1;
     }
+    SDL_Texture* board_texture = SDL_CreateTextureFromSurface(renderer, board_surface);
+    if (!board_texture)
+    {
+        printf("Unable to create a texture. Error: %s", SDL_GetError());
+        return -1;
+    }
 
     // In a moment we will get rid of the surface as we no longer /need that. But let's keep the image dimensions.
     int tex_width = surface->w;
     int tex_height = surface->h;
 
+    int board_width = board_surface->w;
+    int board_height = board_surface->h;
+
     // Bye-bye the surface
     SDL_FreeSurface(surface);
+    SDL_FreeSurface(board_surface);
 
     bool done = false;
     SDL_Event sdl_event;
 
     // The coordinates (could be anything)
-    int x = 400;
-    int y = 400;
+    int x = 960;
+    int y = 540;
 
-    int mouse_movement = 0;
+    // Background cords
+    int board_x = 960;
+    int board_y = 540;
+
+    // Checking at which cell our hero starts
+    int s_y_cor = (x / 128);
+    int s_x_cor = (y / 98);
+    
+    // Used to get position of mouse when button is pressed
     int pos_x;
     int pos_y;
 
+    // Used to check in which cell player did click
+    int x_cor = -1;
+    int y_cor = -1;
+
+    // Used to trigger loops
+    int mouse_movement = 0;
+    int move = 0;
+    bool S = true;
+    bool M = true;
+
+    // Used to count ticks
+    unsigned int lastTime = 0, currentTime;
+
+    unsigned int board[11][15];
+
+    // Obstacles on battleground
+    board[1][1] = board[1][7] = board[1][12] = board[3][9] = board[4][3] = board[5][12] = board[6][6] = board[7][3] = board[7][10] = board[8][13] = board[9][2] = board[9][11] = board[9][9] = 255;
+    
+    // Free spaces on battleground
+    for (int i = 0; i < 11; i++)
+    {
+        for (int j = 0; j < 15; j++)
+        {
+            if (board[i][j] != 255) {
+                board[i][j] = 0;
+            }
+        }
+    }
     // The main loop
     // Every iteration is a frame
     while (!done)
     {
+        currentTime = SDL_GetTicks();
         // Polling the messages from the OS.
         // That could be key downs, mouse movement, ALT+F4 or many others
-        while (SDL_PollEvent(&sdl_event))
+        while (SDL_PollEvent(&sdl_event) && M)
         {
             if (sdl_event.type == SDL_QUIT) // The user wants to quit
             {
@@ -105,34 +158,127 @@ int main()
                 }
             }
             if (sdl_event.type == SDL_MOUSEBUTTONDOWN) {
-                if (sdl_event.button.button == SDL_BUTTON_LEFT)
+                if (sdl_event.button.button == SDL_BUTTON_LEFT || sdl_event.button.button == SDL_BUTTON_RIGHT)
                 {
                     SDL_GetMouseState(&pos_x, &pos_y);
                     mouse_movement = 1;
+                    S = true;
+                    M = false;
                 }
             }
         }
+
+        // Converting x and y pixels position into suitable cell
         if (mouse_movement != 0) {
-            if (x != pos_x) {
-                if (x > pos_x) {
-                    x--;
-                }
-                else {
-                    x++;
-                }
-            }
-            if (y != pos_y) {
-                if (y > pos_y) {
-                    y--;
-                }
-                else {
-                    y++;
+           int board_xx = 128;
+            int board_yy = 98;
+            for (int i = 1; i < 15; i++) {
+                if (pos_x > board_xx * (i - 1) && pos_x < board_xx * i) {
+                    y_cor = i - 1;
                 }
             }
-            if (x == pos_x && y == pos_y) {
+            for (int j = 1; j < 11; j++) {
+                if (pos_y > board_yy * (j - 1) && pos_y < board_yy * j) {
+                    x_cor = j - 1;
+                }
+            }
+            if (x_cor > 0 && y_cor > 0) {
                 mouse_movement = 0;
+                move = 1;
             }
-            Sleep(2);
+            
+        }
+
+        // Marking which cell we try moving to
+        if (move != 0) {
+            if (board[x_cor][y_cor] != 255) {
+                board[x_cor][y_cor] = 1;
+           }
+            move = 0;
+
+        }
+        
+        // My idea for grassfire?
+        while (S) {
+            S = false;
+            if (board[s_x_cor][s_y_cor] != 0) {
+                S = true;
+                break;
+            }
+            for (int j = 1; j < 14; j++) {
+                for (int i = 1; i < 10; i++) {
+                    if (board[i][j] != 0 && board[i][j] != 255) {
+                        board[i][j] += 1;
+                        if (i == 1) {
+
+                        }
+                        else if (board[i - 1][j] != 255 && board[i - 1][j] < board[i][j]) {
+                            board[i - 1][j] = board[i][j] - 1;
+                        }
+                        if (j == 1) {
+
+                        }
+                        else if (board[i][j - 1] != 255 && board[i][j - 1] < board[i][j]) {
+                            board[i][j - 1] = board[i][j] - 1;
+                        }
+                    }
+                }
+            }
+            for (int g = 13; g > 0; g--) {
+                for (int k = 9; k > 0; k--) {
+                    if (board[k][g] != 255) {
+                        if (k == 9) {
+
+                        }
+                        else if (board[k + 1][g] != 255 && board[k + 1][g] < board[k][g]) {
+                            board[k + 1][g] = board[k][g] - 1;
+                        }
+                        if (g == 13) {
+
+                        }
+                        else if (board[k][g + 1] != 255 && board[k][g + 1] < board[k][g]) {
+                            board[k][g + 1] = board[k][g] - 1;
+                        }
+                    }
+                }
+            }
+        } S = true;
+
+
+        // Moving our "hero" to destination
+        if (currentTime > lastTime + 100) {
+            if (board[s_x_cor][s_y_cor] < board[s_x_cor - 1][s_y_cor] && board[s_x_cor - 1][s_y_cor] != 255) {
+                y = 98 * (s_x_cor - 1) + 49;
+                s_x_cor -= 1;
+            }
+            else if (board[s_x_cor][s_y_cor] < board[s_x_cor + 1][s_y_cor] && board[s_x_cor + 1][s_y_cor] != 255) {
+                y = 98 * (s_x_cor + 1) + 49;
+                s_x_cor += 1;
+            }
+            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor - 1] && board[s_x_cor][s_y_cor - 1] != 255) {
+                x = 128 * (s_y_cor - 1) + 64;
+                s_y_cor -= 1;
+            }
+            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor + 1] && board[s_x_cor][s_y_cor + 1] != 255) {
+                x = 128 * (s_y_cor + 1) + 64;
+                s_y_cor += 1;
+            }
+            else {
+                // Clearing table after alogrithm is complete
+                if (board[s_x_cor][s_y_cor] == board[x_cor][y_cor]) {
+                    for (int i = 0; i < 11; i++)
+                    {
+                        for (int j = 0; j < 15; j++)
+                        {
+                            if (board[i][j] != 255) {
+                                board[i][j] = 0;
+                            }
+                        }
+                    }
+                    S = false;
+                    M = true;
+                }
+            } lastTime = currentTime;
         }
 
         // Clearing the screen
@@ -150,6 +296,14 @@ int main()
         rect.w = (int)tex_width;
         rect.h = (int)tex_height;
 
+        SDL_Rect board_rect;
+        board_rect.x = (int)round(board_x - board_width / 2); // Counting from the image's center but that's up to you
+        board_rect.y = (int)round(board_y - board_height / 2); // Counting from the image's center but that's up to you
+        board_rect.w = (int)board_width;
+        board_rect.h = (int)board_height;
+
+        SDL_RenderCopyEx(renderer, board_texture, nullptr, &board_rect, 0, nullptr, SDL_FLIP_NONE);
+            
         SDL_RenderCopyEx(renderer, // Already know what is that
             texture, // The image
             nullptr, // A rectangle to crop from the original image. Since we need the whole image that can be left empty (nullptr)
@@ -161,9 +315,17 @@ int main()
 // Showing the screen to the player
         SDL_RenderPresent(renderer);
 
+        for (int i = 0; i < 11; i++) {
+            for (int j = 0; j < 15; j++) {
+                printf("%d ",board[i][j]);
+            }printf("\n");
+        }
+        printf("\n");
         // next frame...
     }
 
+    SDL_DestroyTexture(texture);
+    SDL_DestroyTexture(board_texture);
     // If we reached here then the main loop stoped
     // That means the game wants to quit
 

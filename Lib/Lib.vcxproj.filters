@@ -15,17 +15,11 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Source.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="SDL2\lib\SDL2.lib">
+    <None Include="SDL2.dll">
       <Filter>Source Files</Filter>
-    </Library>
-    <Library Include="SDL2\lib\SDL2_image.lib">
+    </None>
+    <None Include="SDL2_image.dll">
       <Filter>Source Files</Filter>
-    </Library>
-    <Library Include="SDL2\lib\SDL2main.lib">
-      <Filter>Source Files</Filter>
-    </Library>
+    </None>
   </ItemGroup>
 </Project>
