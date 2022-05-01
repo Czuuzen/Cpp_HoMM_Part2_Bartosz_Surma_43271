@@ -315,12 +315,6 @@ int main()
 // Showing the screen to the player
         SDL_RenderPresent(renderer);
 
-        for (int i = 0; i < 11; i++) {
-            for (int j = 0; j < 15; j++) {
-                printf("%d ",board[i][j]);
-            }printf("\n");
-        }
-        printf("\n");
         // next frame...
     }
 
