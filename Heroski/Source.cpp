@@ -3,6 +3,111 @@
 #include "SDL2/include/SDL.h"
 #include "SDL2/include/SDL_image.h"
 
+const int TABLE_WIDTH = 15;
+const int TABLE_HEIGHT = 11;
+const int CELL_WIDTH = 128;
+const int CELL_HEIGHT = 98;
+const int OBSTACLE = 255;
+const int DELAY = 100;
+const int SCREEN_WIDTH = 1920;
+const int SCREEN_HEIGHT = 1080;
+
+struct Vec2i
+{
+   int x;
+   int y;
+};
+
+struct Vec2f
+{
+    float x;
+    float y;
+};
+
+struct Image {
+    void Init(const char* filename, SDL_Renderer* renderer);
+    void Render(SDL_Renderer* renderer, Vec2f position);
+    void Destroy();
+
+    SDL_Texture* texture;
+    Vec2i texSize;
+};
+
+void Image::Init(const char* filename, SDL_Renderer* renderer) 
+{
+    SDL_Surface* surface = IMG_Load(filename);
+    if (!surface)
+    {
+        printf("Unable to load an image %s. Error: %s", filename, IMG_GetError());
+        return;
+    }
+    
+
+    // Now we use the renderer and the surface to create a texture which we later can draw on the screen.
+    texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture)
+    {
+        printf("Unable to create a texture. Error: %s", SDL_GetError());
+        return;
+    }
+    
+
+    // In a moment we will get rid of the surface as we no longer /need that. But let's keep the image dimensions.
+
+    texSize = { surface->w, surface->h };
+
+    SDL_FreeSurface(surface);
+}
+
+void Image::Destroy() {
+    SDL_DestroyTexture(texture);
+}
+
+void Image::Render(SDL_Renderer* renderer, Vec2f position)
+{
+    SDL_Rect rect;
+    rect.x = (int)round(position.x - texSize.x/2); // Counting from the image's center but that's up to you
+    rect.y = (int)round(position.y - texSize.y/2); // Counting from the image's center but that's up to you
+    rect.w = (int)texSize.x;
+    rect.h = (int)texSize.y;
+
+    SDL_RenderCopyEx(renderer, // Already know what is that
+        texture, // The image
+        nullptr, // A rectangle to crop from the original image. Since we need the whole image that can be left empty (nullptr)
+        &rect, // The destination rectangle on the screen.
+        0, // An angle in degrees for rotation
+        nullptr, // The center of the rotation (when nullptr, the rect center is taken)
+        SDL_FLIP_NONE); // We don't want to flip the image
+}
+
+struct Character
+{
+    void Init(const char* filename, SDL_Renderer* renderer);
+    void Destroy();
+
+    void Render(SDL_Renderer* renderer);
+    
+    Image image;
+    Vec2f position;
+
+};
+
+void Character::Init(const char* filename, SDL_Renderer* renderer)
+{
+    image.Init(filename, renderer);
+   
+}
+
+void Character::Destroy()
+{
+    image.Destroy();
+}
+
+void Character::Render(SDL_Renderer* renderer)
+{
+    image.Render(renderer, position);
+}
+
 int main()
 {
     // Init SDL libraries
@@ -25,7 +130,7 @@ int main()
     // Creating the window 1920x1080 (could be any other size)
     SDL_Window* window = SDL_CreateWindow("FirstSDL",
         0, 0,
-        1920, 1080,
+        SCREEN_WIDTH, SCREEN_HEIGHT,
         SDL_WINDOW_SHOWN);
 
     if (!window)
@@ -40,61 +145,27 @@ int main()
     SDL_SetRenderDrawColor(renderer, 20, 150, 39, 255);
 
     // Loading an image
-    char image_path[] = "image.png";
     char board_path[] = "board.png";
     // Here the surface is the information about the image. It contains the color data, width, height and other info.
-    SDL_Surface* surface = IMG_Load(image_path);
-    if (!surface)
-    {
-        printf("Unable to load an image %s. Error: %s", image_path, IMG_GetError());
-        return -1;
-    }
-    SDL_Surface* board_surface = IMG_Load(board_path);
-    if (!board_surface)
-    {
-        printf("Unable to load an image %s. Error: %s", image_path, IMG_GetError());
-        return -1;
-    }
-
-    // Now we use the renderer and the surface to create a texture which we later can draw on the screen.
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-    if (!texture)
-    {
-        printf("Unable to create a texture. Error: %s", SDL_GetError());
-        return -1;
-    }
-    SDL_Texture* board_texture = SDL_CreateTextureFromSurface(renderer, board_surface);
-    if (!board_texture)
-    {
-        printf("Unable to create a texture. Error: %s", SDL_GetError());
-        return -1;
-    }
-
-    // In a moment we will get rid of the surface as we no longer /need that. But let's keep the image dimensions.
-    int tex_width = surface->w;
-    int tex_height = surface->h;
-
-    int board_width = board_surface->w;
-    int board_height = board_surface->h;
-
-    // Bye-bye the surface
-    SDL_FreeSurface(surface);
-    SDL_FreeSurface(board_surface);
+    Image ig;
+    ig.Init("image.png", renderer);
+    Image bg;
+    bg.Init("board.png", renderer);
 
     bool done = false;
     SDL_Event sdl_event;
 
     // The coordinates (could be anything)
-    int x = 960;
-    int y = 540;
+    float x = 960;
+    float y = 540;
 
     // Background cords
-    int board_x = 960;
-    int board_y = 540;
+    float board_x = 960;
+    float board_y = 540;
 
     // Checking at which cell our hero starts
-    int s_y_cor = (x / 128);
-    int s_x_cor = (y / 98);
+    int s_y_cor = (x / CELL_WIDTH);
+    int s_x_cor = (y / CELL_HEIGHT);
     
     // Used to get position of mouse when button is pressed
     int pos_x;
@@ -105,25 +176,25 @@ int main()
     int y_cor = -1;
 
     // Used to trigger loops
-    int mouse_movement = 0;
-    int move = 0;
+    bool mouse_movement = true;
+    bool move = true;
     bool S = true;
     bool M = true;
 
     // Used to count ticks
     unsigned int lastTime = 0, currentTime;
 
-    unsigned int board[11][15];
+    unsigned int board[TABLE_HEIGHT][TABLE_WIDTH];
 
     // Obstacles on battleground
-    board[1][1] = board[1][7] = board[1][12] = board[3][9] = board[4][3] = board[5][12] = board[6][6] = board[7][3] = board[7][10] = board[8][13] = board[9][2] = board[9][11] = board[9][9] = 255;
+    board[1][1] = board[1][7] = board[1][12] = board[3][9] = board[4][3] = board[5][12] = board[6][6] = board[7][3] = board[7][10] = board[8][13] = board[9][2] = board[9][11] = board[9][9] = OBSTACLE;
     
     // Free spaces on battleground
-    for (int i = 0; i < 11; i++)
+    for (int i = 0; i < TABLE_HEIGHT; i++)
     {
-        for (int j = 0; j < 15; j++)
+        for (int j = 0; j < TABLE_WIDTH; j++)
         {
-            if (board[i][j] != 255) {
+            if (board[i][j] != OBSTACLE) {
                 board[i][j] = 0;
             }
         }
@@ -161,7 +232,7 @@ int main()
                 if (sdl_event.button.button == SDL_BUTTON_LEFT || sdl_event.button.button == SDL_BUTTON_RIGHT)
                 {
                     SDL_GetMouseState(&pos_x, &pos_y);
-                    mouse_movement = 1;
+                    mouse_movement = false;
                     S = true;
                     M = false;
                 }
@@ -169,35 +240,33 @@ int main()
         }
 
         // Converting x and y pixels position into suitable cell
-        if (mouse_movement != 0) {
-           int board_xx = 128;
-            int board_yy = 98;
-            for (int i = 1; i < 15; i++) {
-                if (pos_x > board_xx * (i - 1) && pos_x < board_xx * i) {
+        if (!mouse_movement) {
+            for (int i = 1; i < TABLE_WIDTH; i++) {
+                if (pos_x > CELL_WIDTH * (i - 1) && pos_x < CELL_WIDTH * i) {
                     y_cor = i - 1;
                 }
             }
-            for (int j = 1; j < 11; j++) {
-                if (pos_y > board_yy * (j - 1) && pos_y < board_yy * j) {
+            for (int j = 1; j < TABLE_HEIGHT; j++) {
+                if (pos_y > CELL_HEIGHT * (j - 1) && pos_y < CELL_HEIGHT * j) {
                     x_cor = j - 1;
                 }
             }
             if (x_cor > 0 && y_cor > 0) {
-                mouse_movement = 0;
-                move = 1;
+                mouse_movement = true;
+                move = false;
             }
-            
+
         }
 
         // Marking which cell we try moving to
-        if (move != 0) {
-            if (board[x_cor][y_cor] != 255) {
+        if (!move) {
+            if (board[x_cor][y_cor] != OBSTACLE) {
                 board[x_cor][y_cor] = 1;
-           }
-            move = 0;
+            }
+            move = true;
 
         }
-        
+
         // My idea for grassfire?
         while (S) {
             S = false;
@@ -207,18 +276,18 @@ int main()
             }
             for (int j = 1; j < 14; j++) {
                 for (int i = 1; i < 10; i++) {
-                    if (board[i][j] != 0 && board[i][j] != 255) {
+                    if (board[i][j] != 0 && board[i][j] != OBSTACLE) {
                         board[i][j] += 1;
                         if (i == 1) {
 
                         }
-                        else if (board[i - 1][j] != 255 && board[i - 1][j] < board[i][j]) {
+                        else if (board[i - 1][j] != OBSTACLE && board[i - 1][j] < board[i][j]) {
                             board[i - 1][j] = board[i][j] - 1;
                         }
                         if (j == 1) {
 
                         }
-                        else if (board[i][j - 1] != 255 && board[i][j - 1] < board[i][j]) {
+                        else if (board[i][j - 1] != OBSTACLE && board[i][j - 1] < board[i][j]) {
                             board[i][j - 1] = board[i][j] - 1;
                         }
                     }
@@ -226,51 +295,52 @@ int main()
             }
             for (int g = 13; g > 0; g--) {
                 for (int k = 9; k > 0; k--) {
-                    if (board[k][g] != 255) {
+                    if (board[k][g] != OBSTACLE) {
                         if (k == 9) {
 
                         }
-                        else if (board[k + 1][g] != 255 && board[k + 1][g] < board[k][g]) {
+                        else if (board[k + 1][g] != OBSTACLE && board[k + 1][g] < board[k][g]) {
                             board[k + 1][g] = board[k][g] - 1;
                         }
                         if (g == 13) {
 
                         }
-                        else if (board[k][g + 1] != 255 && board[k][g + 1] < board[k][g]) {
+                        else if (board[k][g + 1] != OBSTACLE && board[k][g + 1] < board[k][g]) {
                             board[k][g + 1] = board[k][g] - 1;
                         }
                     }
                 }
             }
-        } S = true;
+        } 
+        S = true;
 
 
         // Moving our "hero" to destination
-        if (currentTime > lastTime + 100) {
-            if (board[s_x_cor][s_y_cor] < board[s_x_cor - 1][s_y_cor] && board[s_x_cor - 1][s_y_cor] != 255) {
-                y = 98 * (s_x_cor - 1) + 49;
+        if (currentTime > lastTime + DELAY) {
+            if (board[s_x_cor][s_y_cor] < board[s_x_cor - 1][s_y_cor] && board[s_x_cor - 1][s_y_cor] != OBSTACLE) {
+                y = CELL_HEIGHT * (s_x_cor - 1) + CELL_HEIGHT / 2;
                 s_x_cor -= 1;
             }
-            else if (board[s_x_cor][s_y_cor] < board[s_x_cor + 1][s_y_cor] && board[s_x_cor + 1][s_y_cor] != 255) {
-                y = 98 * (s_x_cor + 1) + 49;
+            else if (board[s_x_cor][s_y_cor] < board[s_x_cor + 1][s_y_cor] && board[s_x_cor + 1][s_y_cor] != OBSTACLE) {
+                y = CELL_HEIGHT * (s_x_cor + 1) + CELL_HEIGHT / 2;
                 s_x_cor += 1;
             }
-            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor - 1] && board[s_x_cor][s_y_cor - 1] != 255) {
-                x = 128 * (s_y_cor - 1) + 64;
+            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor - 1] && board[s_x_cor][s_y_cor - 1] != OBSTACLE) {
+                x = CELL_WIDTH * (s_y_cor - 1) + CELL_WIDTH / 2;
                 s_y_cor -= 1;
             }
-            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor + 1] && board[s_x_cor][s_y_cor + 1] != 255) {
-                x = 128 * (s_y_cor + 1) + 64;
+            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor + 1] && board[s_x_cor][s_y_cor + 1] != OBSTACLE) {
+                x = CELL_WIDTH * (s_y_cor + 1) + CELL_WIDTH / 2;
                 s_y_cor += 1;
             }
             else {
                 // Clearing table after alogrithm is complete
                 if (board[s_x_cor][s_y_cor] == board[x_cor][y_cor]) {
-                    for (int i = 0; i < 11; i++)
+                    for (int i = 0; i < TABLE_HEIGHT; i++)
                     {
-                        for (int j = 0; j < 15; j++)
+                        for (int j = 0; j < TABLE_WIDTH; j++)
                         {
-                            if (board[i][j] != 255) {
+                            if (board[i][j] != OBSTACLE) {
                                 board[i][j] = 0;
                             }
                         }
@@ -290,36 +360,20 @@ int main()
 
         
         // Here is the rectangle where the image will be on the screen
-        SDL_Rect rect;
-        rect.x = (int)round(x - tex_width / 2); // Counting from the image's center but that's up to you
-        rect.y = (int)round(y - tex_height / 2); // Counting from the image's center but that's up to you
-        rect.w = (int)tex_width;
-        rect.h = (int)tex_height;
+        
 
-        SDL_Rect board_rect;
-        board_rect.x = (int)round(board_x - board_width / 2); // Counting from the image's center but that's up to you
-        board_rect.y = (int)round(board_y - board_height / 2); // Counting from the image's center but that's up to you
-        board_rect.w = (int)board_width;
-        board_rect.h = (int)board_height;
-
-        SDL_RenderCopyEx(renderer, board_texture, nullptr, &board_rect, 0, nullptr, SDL_FLIP_NONE);
+        
+        bg.Render(renderer, {board_x, board_y});
+        ig.Render(renderer, { x, y });
             
-        SDL_RenderCopyEx(renderer, // Already know what is that
-            texture, // The image
-            nullptr, // A rectangle to crop from the original image. Since we need the whole image that can be left empty (nullptr)
-            &rect, // The destination rectangle on the screen.
-            0, // An angle in degrees for rotation
-            nullptr, // The center of the rotation (when nullptr, the rect center is taken)
-            SDL_FLIP_NONE); // We don't want to flip the image
-
 // Showing the screen to the player
         SDL_RenderPresent(renderer);
 
         // next frame...
     }
 
-    SDL_DestroyTexture(texture);
-    SDL_DestroyTexture(board_texture);
+    ig.Destroy();
+    bg.Destroy();
     // If we reached here then the main loop stoped
     // That means the game wants to quit
 
