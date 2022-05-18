@@ -12,10 +12,56 @@ const int DELAY = 100;
 const int SCREEN_WIDTH = 1920;
 const int SCREEN_HEIGHT = 1080;
 
+// The coordinates (could be anything)
+float x = 960;
+float y = 540;
+
+// Background cords
+float board_x = 960;
+float board_y = 540;
+
+// Checking at which cell our hero starts
+int s_y_cor = (x / CELL_WIDTH);
+int s_x_cor = (y / CELL_HEIGHT);
+
+// Used to get position of mouse when button is pressed
+int pos_x;
+int pos_y;
+
+// Used to check in which cell player did click
+int x_cor = -1;
+int y_cor = -1;
+
+// Used to trigger loops
+bool mouse_movement = true;
+bool move = true;
+bool S = true;
+bool M = true;
+
+// Used to count ticks
+unsigned int lastTime = 0, currentTime;
+
+unsigned int board[TABLE_HEIGHT][TABLE_WIDTH];
+
 struct Vec2i
 {
    int x;
    int y;
+};
+
+struct Vec2ixy
+{
+    int z;
+    int w;
+    int x = (z / CELL_WIDTH);
+    int y = (w / CELL_HEIGHT);
+};
+
+struct Vec4i {
+    int x;
+    int y;
+    int z;
+    int w;
 };
 
 struct Vec2f
@@ -26,6 +72,7 @@ struct Vec2f
 
 struct Image {
     void Init(const char* filename, SDL_Renderer* renderer);
+    void Init(Vec4i color, Vec2i size, SDL_Renderer* renderer);
     void Render(SDL_Renderer* renderer, Vec2f position);
     void Destroy();
 
@@ -59,6 +106,15 @@ void Image::Init(const char* filename, SDL_Renderer* renderer)
     SDL_FreeSurface(surface);
 }
 
+void Image::Init(Vec4i color, Vec2i size, SDL_Renderer* renderer)
+{
+    SDL_Surface* s = SDL_CreateRGBSurface(0, size.x, size.y, 32, color.x, color.y, color.z, color.w);
+    texture = SDL_CreateTextureFromSurface(renderer, s), size.x, size.y;
+    SDL_FreeSurface(s);
+    texSize = size;
+
+}
+
 void Image::Destroy() {
     SDL_DestroyTexture(texture);
 }
@@ -86,9 +142,12 @@ struct Character
     void Destroy();
 
     void Render(SDL_Renderer* renderer);
-    
+    void Movement(Vec2ixy cell_position);
+
     Image image;
     Vec2f position;
+    Vec2ixy cell_position;
+
 
 };
 
@@ -107,9 +166,64 @@ void Character::Render(SDL_Renderer* renderer)
 {
     image.Render(renderer, position);
 }
+Character char1;
+void Movementu(int s_x_cor, int s_y_cor, float y, float x) {
+    if (currentTime > lastTime + DELAY) {
+        if (board[s_x_cor][s_y_cor] < board[s_x_cor - 1][s_y_cor] && board[s_x_cor - 1][s_y_cor] != OBSTACLE) {
+            y = CELL_HEIGHT * (s_x_cor - 1) + CELL_HEIGHT / 2;
+            s_x_cor -= 1;
+            char1.cell_position.x = s_x_cor;
+            char1.position.y = y;
+        }
+        else if (board[s_x_cor][s_y_cor] < board[s_x_cor + 1][s_y_cor] && board[s_x_cor + 1][s_y_cor] != OBSTACLE) {
+            y = CELL_HEIGHT * (s_x_cor + 1) + CELL_HEIGHT / 2;
+            s_x_cor += 1;
+            char1.cell_position.x = s_x_cor;
+            char1.position.y = y;
+        }
+        else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor - 1] && board[s_x_cor][s_y_cor - 1] != OBSTACLE) {
+            x = CELL_WIDTH * (s_y_cor - 1) + CELL_WIDTH / 2;
+            s_y_cor -= 1;
+            char1.cell_position.y = s_x_cor;
+            char1.position.x = x;
+        }
+        else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor + 1] && board[s_x_cor][s_y_cor + 1] != OBSTACLE) {
+            x = CELL_WIDTH * (s_y_cor + 1) + CELL_WIDTH / 2;
+            s_y_cor += 1;
+            char1.cell_position.y = s_x_cor;
+            char1.position.x = x;
+        }
+        else {
+            // Clearing table after alogrithm is complete
+            if (board[s_x_cor][s_y_cor] == board[x_cor][y_cor]) {
+                for (int i = 0; i < TABLE_HEIGHT; i++)
+                {
+                    for (int j = 0; j < TABLE_WIDTH; j++)
+                    {
+                        if (board[i][j] != OBSTACLE) {
+                            board[i][j] = 0;
+                        }
+                    }
+                }
+                S = false;
+                M = true;
+            }
+        } lastTime = currentTime;
+    }
+}
+
+void Character::Movement(Vec2ixy cell_position)
+{
+    Movementu(cell_position.x, cell_position.y, cell_position.w, cell_position.z);
+}
+
+
+
+
 
 int main()
 {
+    
     // Init SDL libraries
     SDL_SetMainReady(); // Just leave it be
     int result = 0;
@@ -140,55 +254,30 @@ int main()
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer)
         return -1;
-
+    //Image BlackImage;
+    //Image black_image;
+    //black_image.Init({ 0, 0, 0, 255 }, { CELL_WIDTH, CELL_HEIGHT }, renderer);
     // Setting the color of an empty window (RGBA). You are free to adjust it.
-    SDL_SetRenderDrawColor(renderer, 20, 150, 39, 255);
+    SDL_SetRenderDrawColor(renderer, 220, 20, 39, 255);
 
     // Loading an image
     char board_path[] = "board.png";
     // Here the surface is the information about the image. It contains the color data, width, height and other info.
-    Image ig;
-    ig.Init("image.png", renderer);
-    Image bg;
-    bg.Init("board.png", renderer);
+    //Image ig;
+
+    char1.cell_position = {640, 400};
+    char1.position = { (float)char1.cell_position.z, (float)char1.cell_position.w };
+    char1.Init("image.png", renderer);
+    //Image bg;
+    //bg.Init("board.png", renderer);
 
     bool done = false;
     SDL_Event sdl_event;
 
-    // The coordinates (could be anything)
-    float x = 960;
-    float y = 540;
-
-    // Background cords
-    float board_x = 960;
-    float board_y = 540;
-
-    // Checking at which cell our hero starts
-    int s_y_cor = (x / CELL_WIDTH);
-    int s_x_cor = (y / CELL_HEIGHT);
     
-    // Used to get position of mouse when button is pressed
-    int pos_x;
-    int pos_y;
-
-    // Used to check in which cell player did click
-    int x_cor = -1;
-    int y_cor = -1;
-
-    // Used to trigger loops
-    bool mouse_movement = true;
-    bool move = true;
-    bool S = true;
-    bool M = true;
-
-    // Used to count ticks
-    unsigned int lastTime = 0, currentTime;
-
-    unsigned int board[TABLE_HEIGHT][TABLE_WIDTH];
 
     // Obstacles on battleground
     board[1][1] = board[1][7] = board[1][12] = board[3][9] = board[4][3] = board[5][12] = board[6][6] = board[7][3] = board[7][10] = board[8][13] = board[9][2] = board[9][11] = board[9][9] = OBSTACLE;
-    
     // Free spaces on battleground
     for (int i = 0; i < TABLE_HEIGHT; i++)
     {
@@ -197,6 +286,10 @@ int main()
             if (board[i][j] != OBSTACLE) {
                 board[i][j] = 0;
             }
+            /*else if (board[i][j] == OBSTACLE) {
+                black_image.Render(renderer, { (float)j, (float)i });
+                
+            }*/
         }
     }
     // The main loop
@@ -270,12 +363,12 @@ int main()
         // My idea for grassfire?
         while (S) {
             S = false;
-            if (board[s_x_cor][s_y_cor] != 0) {
+            if (board[char1.cell_position.x][char1.cell_position.y] != 0) {
                 S = true;
                 break;
             }
-            for (int j = 1; j < 14; j++) {
-                for (int i = 1; i < 10; i++) {
+            for (int j = 1; j < TABLE_WIDTH - 1; j++) {
+                for (int i = 1; i < TABLE_HEIGHT - 1; i++) {
                     if (board[i][j] != 0 && board[i][j] != OBSTACLE) {
                         board[i][j] += 1;
                         if (i == 1) {
@@ -293,8 +386,8 @@ int main()
                     }
                 }
             }
-            for (int g = 13; g > 0; g--) {
-                for (int k = 9; k > 0; k--) {
+            for (int g = TABLE_WIDTH - 2; g > 0; g--) {
+                for (int k = TABLE_HEIGHT - 2; k > 0; k--) {
                     if (board[k][g] != OBSTACLE) {
                         if (k == 9) {
 
@@ -316,41 +409,7 @@ int main()
 
 
         // Moving our "hero" to destination
-        if (currentTime > lastTime + DELAY) {
-            if (board[s_x_cor][s_y_cor] < board[s_x_cor - 1][s_y_cor] && board[s_x_cor - 1][s_y_cor] != OBSTACLE) {
-                y = CELL_HEIGHT * (s_x_cor - 1) + CELL_HEIGHT / 2;
-                s_x_cor -= 1;
-            }
-            else if (board[s_x_cor][s_y_cor] < board[s_x_cor + 1][s_y_cor] && board[s_x_cor + 1][s_y_cor] != OBSTACLE) {
-                y = CELL_HEIGHT * (s_x_cor + 1) + CELL_HEIGHT / 2;
-                s_x_cor += 1;
-            }
-            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor - 1] && board[s_x_cor][s_y_cor - 1] != OBSTACLE) {
-                x = CELL_WIDTH * (s_y_cor - 1) + CELL_WIDTH / 2;
-                s_y_cor -= 1;
-            }
-            else if (board[s_x_cor][s_y_cor] < board[s_x_cor][s_y_cor + 1] && board[s_x_cor][s_y_cor + 1] != OBSTACLE) {
-                x = CELL_WIDTH * (s_y_cor + 1) + CELL_WIDTH / 2;
-                s_y_cor += 1;
-            }
-            else {
-                // Clearing table after alogrithm is complete
-                if (board[s_x_cor][s_y_cor] == board[x_cor][y_cor]) {
-                    for (int i = 0; i < TABLE_HEIGHT; i++)
-                    {
-                        for (int j = 0; j < TABLE_WIDTH; j++)
-                        {
-                            if (board[i][j] != OBSTACLE) {
-                                board[i][j] = 0;
-                            }
-                        }
-                    }
-                    S = false;
-                    M = true;
-                }
-            } lastTime = currentTime;
-        }
-
+        char1.Movement({ char1.cell_position.x, char1.cell_position.y, char1.cell_position.w, char1.cell_position.z });
         // Clearing the screen
         SDL_RenderClear(renderer);
 
@@ -363,8 +422,9 @@ int main()
         
 
         
-        bg.Render(renderer, {board_x, board_y});
-        ig.Render(renderer, { x, y });
+        //bg.Render(renderer, {board_x, board_y});
+        
+        char1.Render(renderer);
             
 // Showing the screen to the player
         SDL_RenderPresent(renderer);
@@ -372,8 +432,8 @@ int main()
         // next frame...
     }
 
-    ig.Destroy();
-    bg.Destroy();
+    char1.Destroy();
+   // bg.Destroy();
     // If we reached here then the main loop stoped
     // That means the game wants to quit
 
